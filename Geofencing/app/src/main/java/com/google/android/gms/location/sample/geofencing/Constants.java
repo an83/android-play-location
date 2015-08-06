@@ -58,4 +58,9 @@ public final class Constants {
         // Googleplex.
         BAY_AREA_LANDMARKS.put("GOOGLE", new LatLng(37.422611,-122.0840577));
     }
+
+    public static final HashMap<String, LatLng> JADE_SOFTWARE_LANDMARKS = new HashMap<String, LatLng>();
+    static {
+        JADE_SOFTWARE_LANDMARKS.put("JADE", new LatLng(-43.492395, 172.559743));
+    }
 }

@@ -19,11 +19,14 @@ package com.google.android.gms.location.sample.geofencing;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.location.Location;
 import android.os.Bundle;
 import android.support.v7.app.ActionBarActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -34,11 +37,22 @@ import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingRequest;
+import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.GeofencingApi;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolygonOptions;
 
+import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Map;
 
 /**
@@ -56,9 +70,10 @@ import java.util.Map;
  * becomes available.
  */
 public class MainActivity extends ActionBarActivity implements
-        ConnectionCallbacks, OnConnectionFailedListener, ResultCallback<Status> {
+        ConnectionCallbacks, OnConnectionFailedListener, ResultCallback<Status>, LocationListener {
 
-    protected static final String TAG = "creating-and-monitoring-geofences";
+    protected static final String TAG = "geofences";
+    protected static final int GEOFENCE_RADIUS = 60;
 
     /**
      * Provides the entry point to Google Play services.
@@ -88,6 +103,19 @@ public class MainActivity extends ActionBarActivity implements
     // Buttons for kicking off the process of adding or removing geofences.
     private Button mAddGeofencesButton;
     private Button mRemoveGeofencesButton;
+    private GoogleMap mMap;
+    private Location mLastLocation;
+    private LocationRequest mLocationRequest;
+    private String mLastUpdateTime;
+    private Marker mMarker;
+    private LatLng mLastLocationLatLng;
+    private LatLng[] mPolygon = {
+            new LatLng(-43.492878, 172.559759),
+            new LatLng(-43.492685, 172.559136),
+            new LatLng(-43.492041, 172.559587)
+    };
+    private boolean mIsInsidePolygon;
+    private TextView mTxtDebug;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -97,6 +125,7 @@ public class MainActivity extends ActionBarActivity implements
         // Get the UI widgets.
         mAddGeofencesButton = (Button) findViewById(R.id.add_geofences_button);
         mRemoveGeofencesButton = (Button) findViewById(R.id.remove_geofences_button);
+        mTxtDebug = (TextView) findViewById(R.id.txtDebug);
 
         // Empty list for storing geofences.
         mGeofenceList = new ArrayList<Geofence>();
@@ -117,6 +146,96 @@ public class MainActivity extends ActionBarActivity implements
 
         // Kick off the request to build GoogleApiClient.
         buildGoogleApiClient();
+
+        createLocationRequest();
+
+        setUpMapIfNeeded();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setUpMapIfNeeded();
+
+        if (mGoogleApiClient.isConnected()) {
+            startLocationUpdates();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopLocationUpdates();
+    }
+
+//    @Override
+//    public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
+//        savedInstanceState.putBoolean(REQUESTING_LOCATION_UPDATES_KEY, mRequestingLocationUpdates);
+//        savedInstanceState.putParcelable(LOCATION_KEY, mCurrentLocation);
+//        savedInstanceState.putString(LAST_UPDATED_TIME_STRING_KEY, mLastUpdateTime);
+//
+//        super.onSaveInstanceState(outState, outPersistentState);
+//    }
+
+    protected void stopLocationUpdates() {
+        LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+    }
+
+    /**
+     * Sets up the map if it is possible to do so (i.e., the Google Play services APK is correctly
+     * installed) and the map has not already been instantiated.. This will ensure that we only ever
+     * call {@link #setUpMap()} once when {@link #mMap} is not null.
+     * <p/>
+     * If it isn't installed {@link SupportMapFragment} (and
+     * {@link com.google.android.gms.maps.MapView MapView}) will show a prompt for the user to
+     * install/update the Google Play services APK on their device.
+     * <p/>
+     * A user can return to this FragmentActivity after following the prompt and correctly
+     * installing/updating/enabling the Google Play services. Since the FragmentActivity may not
+     * have been completely destroyed during this process (it is likely that it would only be
+     * stopped or paused), {@link #onCreate(Bundle)} may not be called again so we should call this
+     * method in {@link #onResume()} to guarantee that it will be called.
+     */
+    private void setUpMapIfNeeded() {
+        // Do a null check to confirm that we have not already instantiated the map.
+        if (mMap == null) {
+            // Try to obtain the map from the SupportMapFragment.
+            mMap = ((SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map))
+                    .getMap();
+            // Check if we were successful in obtaining the map.
+            if (mMap != null) {
+                setUpMap();
+            }
+        }
+    }
+
+    /**
+     * This is where we can add markers or lines, add listeners or move the camera. In this case, we
+     * just add a marker near Africa.
+     * <p/>
+     * This should only be called once and when we are sure that {@link #mMap} is not null.
+     */
+    private void setUpMap() {
+        LatLng latLng = Constants.JADE_SOFTWARE_LANDMARKS.get("JADE");
+
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 19.0f));
+        mMap.addCircle(new CircleOptions().center(latLng).radius(GEOFENCE_RADIUS));
+
+        mMap.addPolygon(new PolygonOptions().add(mPolygon)).setStrokeColor(Color.RED);
+    }
+
+    protected LocationRequest createLocationRequest() {
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setInterval(10000);
+        mLocationRequest.setFastestInterval(5000);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        return mLocationRequest;
+    }
+
+
+    protected void startLocationUpdates() {
+        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
     }
 
     /**
@@ -148,6 +267,14 @@ public class MainActivity extends ActionBarActivity implements
     @Override
     public void onConnected(Bundle connectionHint) {
         Log.i(TAG, "Connected to GoogleApiClient");
+
+        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+
+        if(mLastLocation!=null && mMap!= null){
+            mMarker = mMap.addMarker(new MarkerOptions().position(new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude())).title("Marker"));
+        }
+
+        startLocationUpdates();
     }
 
     @Override
@@ -296,30 +423,30 @@ public class MainActivity extends ActionBarActivity implements
      * the user's location.
      */
     public void populateGeofenceList() {
-        for (Map.Entry<String, LatLng> entry : Constants.BAY_AREA_LANDMARKS.entrySet()) {
+        for (Map.Entry<String, LatLng> entry : Constants.JADE_SOFTWARE_LANDMARKS.entrySet()) {
 
             mGeofenceList.add(new Geofence.Builder()
                     // Set the request ID of the geofence. This is a string to identify this
                     // geofence.
                     .setRequestId(entry.getKey())
 
-                    // Set the circular region of this geofence.
+                            // Set the circular region of this geofence.
                     .setCircularRegion(
                             entry.getValue().latitude,
                             entry.getValue().longitude,
-                            Constants.GEOFENCE_RADIUS_IN_METERS
+                            GEOFENCE_RADIUS
                     )
 
-                    // Set the expiration duration of the geofence. This geofence gets automatically
-                    // removed after this period of time.
+                            // Set the expiration duration of the geofence. This geofence gets automatically
+                            // removed after this period of time.
                     .setExpirationDuration(Constants.GEOFENCE_EXPIRATION_IN_MILLISECONDS)
 
-                    // Set the transition types of interest. Alerts are only generated for these
-                    // transition. We track entry and exit transitions in this sample.
+                            // Set the transition types of interest. Alerts are only generated for these
+                            // transition. We track entry and exit transitions in this sample.
                     .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER |
                             Geofence.GEOFENCE_TRANSITION_EXIT)
 
-                    // Create the geofence.
+                            // Create the geofence.
                     .build());
         }
     }
@@ -337,5 +464,20 @@ public class MainActivity extends ActionBarActivity implements
             mAddGeofencesButton.setEnabled(true);
             mRemoveGeofencesButton.setEnabled(false);
         }
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+        mLastLocation = location;
+        mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
+
+        mLastLocationLatLng = new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude());
+
+        if(mMarker!=null){
+            mMarker.setPosition(mLastLocationLatLng);
+        }
+
+        mIsInsidePolygon = PolygonTest.PointIsInRegion(mLastLocationLatLng, mPolygon);
+        mTxtDebug.setText(String.format("Location: %s. inside: %s", mLastLocationLatLng, mIsInsidePolygon));
     }
 }
