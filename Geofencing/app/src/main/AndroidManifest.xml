@@ -40,7 +40,7 @@ limitations under the License.
 
         <meta-data
             android:name="com.google.android.maps.v2.API_KEY"
-            android:value="AIzaSyAI4IFublqRbcIfmCnB_VHLHm2pM0vnAXI" />
+            android:value="@string/google_maps_key" />
 
         <activity
             android:name=".MainActivity"
@@ -51,15 +51,6 @@ limitations under the License.
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-<!--
-        <activity
-            android:name=".MapsActivity"
-            android:label="@string/app_name" >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>-->
 
         <service android:name=".GeofenceTransitionsIntentService" />
     </application>

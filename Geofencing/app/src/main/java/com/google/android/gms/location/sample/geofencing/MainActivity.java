@@ -17,11 +17,16 @@
 package com.google.android.gms.location.sample.geofencing;
 
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.ResultReceiver;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.ActionBarActivity;
 import android.util.Log;
 import android.view.View;
@@ -110,12 +115,13 @@ public class MainActivity extends ActionBarActivity implements
     private Marker mMarker;
     private LatLng mLastLocationLatLng;
     private LatLng[] mPolygon = {
-            new LatLng(-43.492878, 172.559759),
-            new LatLng(-43.492685, 172.559136),
-            new LatLng(-43.492041, 172.559587)
+        new LatLng(-43.492878, 172.559759),
+        new LatLng(-43.492685, 172.559136),
+        new LatLng(-43.492041, 172.559587)
     };
     private boolean mIsInsidePolygon;
     private TextView mTxtDebug;
+    private boolean mWasInside;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -147,9 +153,16 @@ public class MainActivity extends ActionBarActivity implements
         // Kick off the request to build GoogleApiClient.
         buildGoogleApiClient();
 
-        createLocationRequest();
+//        createLocationRequest();
 
         setUpMapIfNeeded();
+
+//        LocalBroadcastManager.getInstance(this).registerReceiver(new BroadcastReceiver() {
+//            @Override
+//            public void onReceive(Context context, Intent intent) {
+//                Log.d(TAG, "received ... ");
+//            }
+//        }, new IntentFilter(GeofenceTransitionsIntentService.GEOFENCE_TRANSITION));
     }
 
     @Override
@@ -157,9 +170,9 @@ public class MainActivity extends ActionBarActivity implements
         super.onResume();
         setUpMapIfNeeded();
 
-        if (mGoogleApiClient.isConnected()) {
-            startLocationUpdates();
-        }
+//        if (mGoogleApiClient.isConnected()) {
+//            startLocationUpdates();
+//        }
     }
 
     @Override
@@ -167,15 +180,6 @@ public class MainActivity extends ActionBarActivity implements
         super.onPause();
         stopLocationUpdates();
     }
-
-//    @Override
-//    public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
-//        savedInstanceState.putBoolean(REQUESTING_LOCATION_UPDATES_KEY, mRequestingLocationUpdates);
-//        savedInstanceState.putParcelable(LOCATION_KEY, mCurrentLocation);
-//        savedInstanceState.putString(LAST_UPDATED_TIME_STRING_KEY, mLastUpdateTime);
-//
-//        super.onSaveInstanceState(outState, outPersistentState);
-//    }
 
     protected void stopLocationUpdates() {
         LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
@@ -268,13 +272,13 @@ public class MainActivity extends ActionBarActivity implements
     public void onConnected(Bundle connectionHint) {
         Log.i(TAG, "Connected to GoogleApiClient");
 
-        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+//        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+//
+//        if(mLastLocation!=null && mMap!= null && mMarker == null){
+//            mMarker = mMap.addMarker(new MarkerOptions().position(new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude())).title("Marker"));
+//        }
 
-        if(mLastLocation!=null && mMap!= null){
-            mMarker = mMap.addMarker(new MarkerOptions().position(new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude())).title("Marker"));
-        }
-
-        startLocationUpdates();
+//        startLocationUpdates();
     }
 
     @Override
@@ -388,8 +392,7 @@ public class MainActivity extends ActionBarActivity implements
 
             Toast.makeText(
                     this,
-                    getString(mGeofencesAdded ? R.string.geofences_added :
-                            R.string.geofences_removed),
+                    getString(mGeofencesAdded ? R.string.geofences_added : R.string.geofences_removed),
                     Toast.LENGTH_SHORT
             ).show();
         } else {
@@ -413,6 +416,12 @@ public class MainActivity extends ActionBarActivity implements
             return mGeofencePendingIntent;
         }
         Intent intent = new Intent(this, GeofenceTransitionsIntentService.class);
+        intent.putExtra(GeofenceTransitionsIntentService.REQUEST_RECEIVER_EXTRA, new ResultReceiver(null) {
+            @Override
+            protected void onReceiveResult(int resultCode, Bundle resultData) {
+                //todo
+            }
+        });
         // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
         // addGeofences() and removeGeofences().
         return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
@@ -471,13 +480,31 @@ public class MainActivity extends ActionBarActivity implements
         mLastLocation = location;
         mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
 
-        mLastLocationLatLng = new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude());
+//        mLastLocationLatLng = new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude());
+//
+//        if(mMarker!=null){
+//            mMarker.setPosition(mLastLocationLatLng);
+//        }
 
-        if(mMarker!=null){
-            mMarker.setPosition(mLastLocationLatLng);
-        }
+        processLocationChanged();
+    }
+
+    private void processLocationChanged(){
 
         mIsInsidePolygon = PolygonTest.PointIsInRegion(mLastLocationLatLng, mPolygon);
         mTxtDebug.setText(String.format("Location: %s. inside: %s", mLastLocationLatLng, mIsInsidePolygon));
+
+        if(!mWasInside && mIsInsidePolygon){
+            //entered
+            Notification.sendNotification(this, "Entered polygon");
+
+            mWasInside = mIsInsidePolygon;
+        }
+        else if (mWasInside && !mIsInsidePolygon){
+            //exited
+            Notification.sendNotification(this, "Exited polygon");
+
+            mWasInside = mIsInsidePolygon;
+        }
     }
 }
