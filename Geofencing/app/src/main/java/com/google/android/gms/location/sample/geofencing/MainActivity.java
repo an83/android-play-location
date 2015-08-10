@@ -20,11 +20,13 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.location.Location;
 import android.os.Bundle;
 import android.support.v7.app.ActionBarActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -35,6 +37,8 @@ import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingRequest;
+import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.GeofencingApi;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -42,8 +46,11 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolygonOptions;
 
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -62,7 +69,7 @@ import java.util.Map;
  * becomes available.
  */
 public class MainActivity extends ActionBarActivity implements
-        ConnectionCallbacks, OnConnectionFailedListener, ResultCallback<Status> {
+        ConnectionCallbacks, OnConnectionFailedListener, ResultCallback<Status>, LocationListener {
 
     protected static final String TAG = "geofences";
 
@@ -100,6 +107,9 @@ public class MainActivity extends ActionBarActivity implements
             new LatLng(-43.492685, 172.559136),
             new LatLng(-43.492041, 172.559587)
     };
+    private Location mLastLocation;
+    private Marker mMarker;
+    private TextView mTxtDebug;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -109,6 +119,7 @@ public class MainActivity extends ActionBarActivity implements
         // Get the UI widgets.
         mAddGeofencesButton = (Button) findViewById(R.id.add_geofences_button);
         mRemoveGeofencesButton = (Button) findViewById(R.id.remove_geofences_button);
+        mTxtDebug = (TextView) findViewById(R.id.txtDebug);
 
         // Empty list for storing geofences.
         mGeofenceList = new ArrayList<Geofence>();
@@ -220,6 +231,10 @@ public class MainActivity extends ActionBarActivity implements
     @Override
     public void onConnected(Bundle connectionHint) {
         Log.i(TAG, "Connected to GoogleApiClient");
+
+        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+
+        startLocationUpdates();
     }
 
     @Override
@@ -379,7 +394,7 @@ public class MainActivity extends ActionBarActivity implements
                     .setCircularRegion(
                             entry.getValue().latitude,
                             entry.getValue().longitude,
-                            Constants.GEOFENCE_RADIUS_IN_METERS
+                            Constants.GEOFENCE_RADIUS
                     )
 
                     // Set the expiration duration of the geofence. This geofence gets automatically
@@ -409,5 +424,31 @@ public class MainActivity extends ActionBarActivity implements
             mAddGeofencesButton.setEnabled(true);
             mRemoveGeofencesButton.setEnabled(false);
         }
+    }
+
+
+    protected void startLocationUpdates() {
+        LocationRequest locationRequest = new LocationRequest();
+        locationRequest.setInterval(10000);
+        locationRequest.setFastestInterval(5000);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+
+        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, locationRequest, this);
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+        mLastLocation = location;
+
+        LatLng mLastLocationLatLng = new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude());
+
+        if(mMarker==null){
+            mMarker = mMap.addMarker(new MarkerOptions().position(new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude())).title("Your location"));
+        }
+        mMarker.setPosition(mLastLocationLatLng);
+
+        boolean mIsInsidePolygon = PolygonTest.PointIsInRegion(mLastLocationLatLng, mPolygon);
+        mTxtDebug.setText(String.format("Location: %s. inside: %s", mLastLocationLatLng, mIsInsidePolygon));
     }
 }
