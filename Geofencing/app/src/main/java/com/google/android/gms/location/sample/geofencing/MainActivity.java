@@ -19,6 +19,7 @@ package com.google.android.gms.location.sample.geofencing;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.support.v7.app.ActionBarActivity;
 import android.util.Log;
@@ -36,7 +37,12 @@ import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.GeofencingApi;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.PolygonOptions;
 
 import java.util.ArrayList;
 import java.util.Map;
@@ -58,7 +64,7 @@ import java.util.Map;
 public class MainActivity extends ActionBarActivity implements
         ConnectionCallbacks, OnConnectionFailedListener, ResultCallback<Status> {
 
-    protected static final String TAG = "creating-and-monitoring-geofences";
+    protected static final String TAG = "geofences";
 
     /**
      * Provides the entry point to Google Play services.
@@ -88,6 +94,12 @@ public class MainActivity extends ActionBarActivity implements
     // Buttons for kicking off the process of adding or removing geofences.
     private Button mAddGeofencesButton;
     private Button mRemoveGeofencesButton;
+    private GoogleMap mMap;
+    private LatLng[] mPolygon = {
+            new LatLng(-43.492878, 172.559759),
+            new LatLng(-43.492685, 172.559136),
+            new LatLng(-43.492041, 172.559587)
+    };
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -117,7 +129,67 @@ public class MainActivity extends ActionBarActivity implements
 
         // Kick off the request to build GoogleApiClient.
         buildGoogleApiClient();
+
+        setUpMapIfNeeded();
     }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        setUpMapIfNeeded();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+    }
+
+
+    /**
+     * Sets up the map if it is possible to do so (i.e., the Google Play services APK is correctly
+     * installed) and the map has not already been instantiated.. This will ensure that we only ever
+     * call {@link #setUpMap()} once when {@link #mMap} is not null.
+     * <p/>
+     * If it isn't installed {@link SupportMapFragment} (and
+     * {@link com.google.android.gms.maps.MapView MapView}) will show a prompt for the user to
+     * install/update the Google Play services APK on their device.
+     * <p/>
+     * A user can return to this FragmentActivity after following the prompt and correctly
+     * installing/updating/enabling the Google Play services. Since the FragmentActivity may not
+     * have been completely destroyed during this process (it is likely that it would only be
+     * stopped or paused), {@link #onCreate(Bundle)} may not be called again so we should call this
+     * method in {@link #onResume()} to guarantee that it will be called.
+     */
+    private void setUpMapIfNeeded() {
+        // Do a null check to confirm that we have not already instantiated the map.
+        if (mMap == null) {
+            // Try to obtain the map from the SupportMapFragment.
+            mMap = ((SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map))
+                    .getMap();
+            // Check if we were successful in obtaining the map.
+            if (mMap != null) {
+                setUpMap();
+            }
+        }
+    }
+
+    /**
+     * This is where we can add markers or lines, add listeners or move the camera. In this case, we
+     * just add a marker near Africa.
+     * <p/>
+     * This should only be called once and when we are sure that {@link #mMap} is not null.
+     */
+    private void setUpMap() {
+        LatLng latLng = Constants.JADE_SOFTWARE_LANDMARKS.get("JADE");
+
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 19.0f));
+        mMap.addCircle(new CircleOptions().center(latLng).radius(Constants.GEOFENCE_RADIUS));
+
+        mMap.addPolygon(new PolygonOptions().add(mPolygon)).setStrokeColor(Color.RED);
+    }
+
 
     /**
      * Builds a GoogleApiClient. Uses the {@code #addApi} method to request the LocationServices API.
