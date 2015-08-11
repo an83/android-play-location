@@ -17,7 +17,10 @@
 package com.google.android.gms.location.sample.geofencing;
 
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.location.Location;
@@ -33,6 +36,7 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.GoogleApiClient.ConnectionCallbacks;
 import com.google.android.gms.common.api.GoogleApiClient.OnConnectionFailedListener;
+import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.Geofence;
@@ -49,8 +53,6 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolygonOptions;
-
-import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -110,6 +112,9 @@ public class MainActivity extends ActionBarActivity implements
     private Location mLastLocation;
     private Marker mMarker;
     private TextView mTxtDebug;
+    private LocationRequest mLocationRequest;
+    private PendingResult<Status> mPendingRequest;
+    private boolean mUpdatingLocation = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -141,6 +146,8 @@ public class MainActivity extends ActionBarActivity implements
         // Kick off the request to build GoogleApiClient.
         buildGoogleApiClient();
 
+        createLocationRequest();
+
         setUpMapIfNeeded();
     }
 
@@ -149,6 +156,7 @@ public class MainActivity extends ActionBarActivity implements
         super.onResume();
 
         setUpMapIfNeeded();
+
     }
 
     @Override
@@ -217,6 +225,31 @@ public class MainActivity extends ActionBarActivity implements
     protected void onStart() {
         super.onStart();
         mGoogleApiClient.connect();
+
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Constants.GEOFENCE_TRANS_DETAIL_ACTION);
+
+        registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String details = intent.getStringExtra(Constants.GEOFENCE_TRANS_DETAIL_EXTRA);
+                int type = intent.getIntExtra(Constants.GEOFENCE_TRANS_DETAIL_EXTRA_TYPE, -1);
+
+                Toast.makeText(MainActivity.this, "received: [" + details + "] type: " + type, Toast.LENGTH_LONG).show();
+
+                switch (type) {
+                    case Geofence.GEOFENCE_TRANSITION_ENTER:
+                        startLocationUpdates();
+                        break;
+
+                    case Geofence.GEOFENCE_TRANSITION_EXIT:
+                        stopLocationUpdates();
+                        break;
+                }
+
+            }
+        }, intentFilter);
+
     }
 
     @Override
@@ -234,7 +267,9 @@ public class MainActivity extends ActionBarActivity implements
 
         mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
 
-        startLocationUpdates();
+        if(mUpdatingLocation){
+            startLocationUpdates();
+        }
     }
 
     @Override
@@ -375,7 +410,9 @@ public class MainActivity extends ActionBarActivity implements
         Intent intent = new Intent(this, GeofenceTransitionsIntentService.class);
         // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
         // addGeofences() and removeGeofences().
-        return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        mGeofencePendingIntent = PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        return mGeofencePendingIntent;
     }
 
     /**
@@ -426,15 +463,30 @@ public class MainActivity extends ActionBarActivity implements
         }
     }
 
+    private void createLocationRequest(){
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setInterval(10000);
+        mLocationRequest.setFastestInterval(5000);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
-    protected void startLocationUpdates() {
-        LocationRequest locationRequest = new LocationRequest();
-        locationRequest.setInterval(10000);
-        locationRequest.setFastestInterval(5000);
-        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+    }
 
+    private void startLocationUpdates() {
+        Toast.makeText(this, "start location update", Toast.LENGTH_LONG).show();
 
-        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, locationRequest, this);
+        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, MainActivity.this);
+
+        mUpdatingLocation = true;
+    }
+
+    private void stopLocationUpdates(){
+        Toast.makeText(this, "stop location update", Toast.LENGTH_LONG).show();
+
+        if(mGeofencePendingIntent!=null){
+            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, mGeofencePendingIntent);
+        }
+
+        mUpdatingLocation = false;
     }
 
     @Override

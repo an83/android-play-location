@@ -25,6 +25,8 @@ import java.util.HashMap;
  */
 public final class Constants {
 
+
+
     private Constants() {
     }
 
@@ -33,6 +35,11 @@ public final class Constants {
     public static final String SHARED_PREFERENCES_NAME = PACKAGE_NAME + ".SHARED_PREFERENCES_NAME";
 
     public static final String GEOFENCES_ADDED_KEY = PACKAGE_NAME + ".GEOFENCES_ADDED_KEY";
+
+    public static final String GEOFENCE_TRANS_DETAIL_ACTION = PACKAGE_NAME + ".GEOFENCE_TRANS_DETAIL_ACTION";
+
+    public static final String GEOFENCE_TRANS_DETAIL_EXTRA = PACKAGE_NAME + ".GEOFENCE_TRANS_DETAIL_EXTRA";
+    public static final String GEOFENCE_TRANS_DETAIL_EXTRA_TYPE = GEOFENCE_TRANS_DETAIL_EXTRA + ".TYPE";
 
     /**
      * Used to set an expiration time for a geofence. After this amount of time Location Services

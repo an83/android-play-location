@@ -94,10 +94,23 @@ public class GeofenceTransitionsIntentService extends IntentService {
             // Send notification and log the transition details.
             sendNotification(geofenceTransitionDetails);
             Log.i(TAG, geofenceTransitionDetails);
+
+            broadcastGeofence(geofenceTransition, geofenceTransitionDetails);
+
         } else {
             // Log the error.
             Log.e(TAG, getString(R.string.geofence_transition_invalid_type, geofenceTransition));
         }
+    }
+
+    private void broadcastGeofence(int geofenceTransition, String geofenceTransitionDetails) {
+
+        Intent intent = new Intent();
+        intent.setAction(Constants.GEOFENCE_TRANS_DETAIL_ACTION);
+        intent.putExtra(Constants.GEOFENCE_TRANS_DETAIL_EXTRA, geofenceTransitionDetails);
+        intent.putExtra(Constants.GEOFENCE_TRANS_DETAIL_EXTRA_TYPE, geofenceTransition);
+
+        sendBroadcast(intent);
     }
 
     /**
